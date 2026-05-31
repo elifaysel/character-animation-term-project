@@ -2,6 +2,7 @@
 **Student:** Elif Aysel Yıldırım  - 220201046
 **Course:** Character Animation: Modeling, Simulation and Human Motion Control
 **Deadline:** May 31, 2026
+Link: https://drive.google.com/file/d/1yasithkyvp7-8qHunjQX8uwv9NoXSipE/view?usp=sharing
 
 ## Motion States Implemented
 - Walk
