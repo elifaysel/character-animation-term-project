@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character Animation — Joint Angle Model</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #070708;
+    --surface: #0e0e10;
+    --border: #1a1a1e;
+    --text: #f0f0f0;
+    --dim: #555560;
+    --walk: #4fc3f7;
+    --run: #69f0ae;
+    --jump: #ffd54f;
+    --kick: #ff7043;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* HEADER */
+  header {
+    width: 100%;
+    padding: 3rem 2rem 2rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .header-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+  }
+
+  .accent { color: var(--walk); }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* MOTION SELECTOR */
+  .motion-bar {
+    display: flex;
+    gap: 2px;
+    margin: 2.5rem 0 0;
+    background: var(--border);
+    border-radius: 4px;
+    padding: 2px;
+  }
+
+  .motion-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    padding: 10px 28px;
+    border: none;
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .motion-btn:hover { color: var(--text); }
+  .motion-btn.active[data-m="walk"] { background: #4fc3f718; color: var(--walk); }
+  .motion-btn.active[data-m="run"]  { background: #69f0ae18; color: var(--run); }
+  .motion-btn.active[data-m="jump"] { background: #ffd54f18; color: var(--jump); }
+  .motion-btn.active[data-m="kick"] { background: #ff704318; color: var(--kick); }
+
+  /* MAIN CONTENT */
+  .main {
+    display: flex;
+    gap: 0;
+    width: 100%;
+    max-width: 1200px;
+    padding: 2rem;
+    gap: 2rem;
+    align-items: flex-start;
+  }
+
+  /* CANVAS */
+  .stage-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .stage {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: 460px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .phase-tag {
+    position: absolute;
+    top: 12px; left: 12px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+
+  .t-tag {
+    position: absolute;
+    top: 12px; right: 12px;
+    font-size: 10px;
+    color: var(--dim);
+  }
+
+  /* SPEED */
+  .speed-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.08em;
+  }
+  .speed-row input { flex: 1; accent-color: var(--dim); }
+  .speed-val { min-width: 28px; text-align: right; }
+
+  /* INFO PANEL */
+  .info-panel {
+    width: 260px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .joint-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .joint-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .jlabel {
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .jval {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .junit { font-size: 9px; color: var(--dim); }
+
+  /* DESCRIPTION */
+  .desc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+
+  .desc-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .desc-text {
+    font-size: 10px;
+    color: var(--dim);
+    line-height: 1.8;
+  }
+
+  .phase-list {
+    list-style: none;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .phase-list li {
+    font-size: 10px;
+    color: var(--dim);
+    display: flex;
+    gap: 8px;
+  }
+
+  .phase-list li span:first-child {
+    color: var(--text);
+    min-width: 80px;
+  }
+
+  /* FOOTER */
+  footer {
+    width: 100%;
+    border-top: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.08em;
+    margin-top: auto;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-tag">Character Animation — Term Project</div>
+  <h1>Joint <span class="accent">Angle</span> Model</h1>
+  <div class="subtitle">10 joints · 4 motions · kinematic simulation</div>
+  <div class="motion-bar">
+    <button class="motion-btn active" data-m="walk">Walk</button>
+    <button class="motion-btn" data-m="run">Run</button>
+    <button class="motion-btn" data-m="jump">Jump</button>
+    <button class="motion-btn" data-m="kick">Kick</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="stage-wrap">
+    <div class="stage">
+      <canvas id="fig"></canvas>
+      <div class="phase-tag" id="phase-tag">—</div>
+      <div class="t-tag" id="t-tag">t = 0.00</div>
+    </div>
+    <div class="speed-row">
+      <span>Speed</span>
+      <input type="range" id="sl-speed" min="0.1" max="3" value="0.8" step="0.1">
+      <span class="speed-val" id="lbl-speed">0.8×</span>
+    </div>
+  </div>
+
+  <div class="info-panel">
+    <div class="joint-grid">
+      <div class="joint-card"><div class="jlabel">Hip R</div><div class="jval" id="j-hip-r">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Hip L</div><div class="jval" id="j-hip-l">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Knee R</div><div class="jval" id="j-knee-r">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Knee L</div><div class="jval" id="j-knee-l">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Ankle R</div><div class="jval" id="j-ankle-r">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Ankle L</div><div class="jval" id="j-ankle-l">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Shoulder R</div><div class="jval" id="j-shr">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Shoulder L</div><div class="jval" id="j-shl">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Elbow R</div><div class="jval" id="j-elr">0</div><div class="junit">deg</div></div>
+      <div class="joint-card"><div class="jlabel">Elbow L</div><div class="jval" id="j-ell">0</div><div class="junit">deg</div></div>
+    </div>
+    <div class="desc-card" id="desc-card"></div>
+  </div>
+</div>
+
+<footer>
+  <span>Elif Aysel Yıldırım — Character Animation</span>
+  <span>N8RO · NeutralCivilian_01</span>
+</footer>
+
+<script>
+const PI = Math.PI, D2R = PI/180;
+
+// ---- MOTION DEFINITIONS ----
+function smooth(t) { return t*t*(3-2*t); }
+function lerp(a,b,t) { return a+(b-a)*t; }
+
+const motions = {
+  walk: {
+    color: '#4fc3f7',
+    desc: { title: 'Walk', text: 'Cyclic locomotion. Hip oscillates ±14°, knee leads with phase delay, arms counter-swing.', phases: [] },
+    hip_r:   t => 14*Math.sin(2*PI*t+PI/2),
+    hip_l:   t => 14*Math.sin(2*PI*t+3*PI/2),
+    knee_r:  t => { var h=Math.sin(2*PI*t+PI/2),r=Math.sin(2*PI*t+PI/2-PI/3); return h>=0?Math.max(0,r)*34:Math.max(0,r)*15; },
+    knee_l:  t => { var h=Math.sin(2*PI*t+3*PI/2),r=Math.sin(2*PI*t+3*PI/2-PI/3); return h>=0?Math.max(0,r)*34:Math.max(0,r)*15; },
+    ankle_r: t => { var a=Math.max(0,Math.sin(2*PI*t+PI/2)); return 20*a+10*(1-a); },
+    ankle_l: t => { var a=Math.max(0,Math.sin(2*PI*t+3*PI/2)); return 20*a+10*(1-a); },
+    shr: t => -20*Math.sin(2*PI*t+PI/2),
+    shl: t => -20*Math.sin(2*PI*t+3*PI/2),
+    elr: t => 15+10*Math.max(0,Math.sin(2*PI*t)),
+    ell: t => 15+10*Math.max(0,Math.sin(2*PI*t+PI)),
+    bodyY: t => 0,
+    phase: t => 'Cyclic walk',
+  },
+  run: {
+    color: '#69f0ae',
+    desc: { title: 'Run', text: 'Faster locomotion with wider angles. Hip ±35°, knee up to 65° swing phase. Body bounces.', phases: [] },
+    hip_r:   t => 35*Math.sin(2*PI*t+PI/2),
+    hip_l:   t => 35*Math.sin(2*PI*t+3*PI/2),
+    knee_r:  t => { var h=Math.sin(2*PI*t+PI/2),r=Math.sin(2*PI*t+PI/2-PI/3); return h>=0?Math.max(0,r)*65:Math.max(0,r)*25; },
+    knee_l:  t => { var h=Math.sin(2*PI*t+3*PI/2),r=Math.sin(2*PI*t+3*PI/2-PI/3); return h>=0?Math.max(0,r)*65:Math.max(0,r)*25; },
+    ankle_r: t => { var a=Math.max(0,Math.sin(2*PI*t+PI/2)); return 25*a+10*(1-a); },
+    ankle_l: t => { var a=Math.max(0,Math.sin(2*PI*t+3*PI/2)); return 25*a+10*(1-a); },
+    shr: t => -40*Math.sin(2*PI*t+PI/2),
+    shl: t => -40*Math.sin(2*PI*t+3*PI/2),
+    elr: t => 60+15*Math.max(0,Math.sin(2*PI*t)),
+    ell: t => 60+15*Math.max(0,Math.sin(2*PI*t+PI)),
+    bodyY: t => -8*Math.abs(Math.sin(4*PI*t)),
+    phase: t => 'Cyclic run',
+  },
+  jump: {
+    color: '#ffd54f',
+    desc: { title: 'Jump', text: '4-phase model with smooth interpolation.', phases: [
+      ['Crouch (0→0.3)', 'Hip & knee bend, arms pull back'],
+      ['Push-off (0.3→0.5)', 'Legs extend, arms swing up'],
+      ['Air (0.5→0.7)', 'Near-straight legs, arms overhead'],
+      ['Land (0.7→1.0)', 'Soft knee absorption'],
+    ]},
+    hip_r:  t => t<0.3?-lerp(0,45,smooth(t/0.3)):t<0.5?-lerp(45,0,smooth((t-0.3)/0.2)):0,
+    hip_l:  t => t<0.3?-lerp(0,45,smooth(t/0.3)):t<0.5?-lerp(45,0,smooth((t-0.3)/0.2)):0,
+    knee_r: t => t<0.3?lerp(0,85,smooth(t/0.3)):t<0.5?lerp(85,0,smooth((t-0.3)/0.2)):t<0.7?lerp(0,10,smooth((t-0.5)/0.2)):t<0.82?lerp(10,20,smooth((t-0.7)/0.12)):lerp(20,0,smooth((t-0.82)/0.18)),
+    knee_l: t => t<0.3?lerp(0,85,smooth(t/0.3)):t<0.5?lerp(85,0,smooth((t-0.3)/0.2)):t<0.7?lerp(0,10,smooth((t-0.5)/0.2)):t<0.82?lerp(10,20,smooth((t-0.7)/0.12)):lerp(20,0,smooth((t-0.82)/0.18)),
+    ankle_r:t=>t<0.3?lerp(0,12,smooth(t/0.3)):t<0.5?lerp(12,0,smooth((t-0.3)/0.2)):t<0.7?lerp(0,15,smooth((t-0.5)/0.2)):t<0.78?lerp(15,0,smooth((t-0.7)/0.08)):0,
+    ankle_l:t=>t<0.3?lerp(0,12,smooth(t/0.3)):t<0.5?lerp(12,0,smooth((t-0.3)/0.2)):t<0.7?lerp(0,15,smooth((t-0.5)/0.2)):t<0.78?lerp(15,0,smooth((t-0.7)/0.08)):0,
+    shr: t=>t<0.15?lerp(0,19.5*0.3,smooth(t/0.15)):t<0.3?lerp(19.5*0.3,19.5*0.5,smooth((t-0.15)/0.15)):t<0.5?lerp(19.5*0.5,-65,smooth((t-0.3)/0.2)):t<0.7?lerp(-65,-26,smooth((t-0.5)/0.2)):lerp(-26,0,smooth((t-0.7)/0.3)),
+    shl: t=>t<0.15?lerp(0,19.5*0.3,smooth(t/0.15)):t<0.3?lerp(19.5*0.3,19.5*0.5,smooth((t-0.15)/0.15)):t<0.5?lerp(19.5*0.5,-65,smooth((t-0.3)/0.2)):t<0.7?lerp(-65,-26,smooth((t-0.5)/0.2)):lerp(-26,0,smooth((t-0.7)/0.3)),
+    elr: t=>t<0.5?lerp(20,75,smooth(t/0.5)):lerp(75,20,smooth((t-0.5)/0.5)),
+    ell: t=>t<0.5?lerp(20,75,smooth(t/0.5)):lerp(75,20,smooth((t-0.5)/0.5)),
+    bodyY: t=>t<0.3?lerp(0,12,smooth(t/0.3)):t<0.5?lerp(12,-90,smooth((t-0.3)/0.2)):t<0.7?lerp(-90,0,smooth((t-0.5)/0.2)):t<0.82?lerp(0,8,smooth((t-0.7)/0.12)):lerp(8,0,smooth((t-0.82)/0.18)),
+    phase: t => t<0.3?'Crouch':t<0.5?'Push-off':t<0.7?'Air':'Land',
+  },
+  kick: {
+    color: '#ff7043',
+    desc: { title: 'Kick', text: 'Support leg (left) fixed. Kicking leg (right) pulls back then strikes forward.', phases: [
+      ['Prep (0→0.3)', 'Slight lift of kick leg'],
+      ['Pull-back (0.3→0.5)', 'Knee bends 80°'],
+      ['Strike (0.5→0.7)', 'Leg extends fully forward'],
+      ['Return (0.7→1.0)', 'Leg returns to neutral'],
+    ]},
+    hip_r:  t=>t<0.3?lerp(0,-20,smooth(t/0.3)):t<0.5?-20:t<0.7?lerp(-20,-60,smooth((t-0.5)/0.2)):lerp(-60,0,smooth((t-0.7)/0.3)),
+    hip_l:  t=>0,
+    knee_r: t=>t<0.3?0:t<0.5?lerp(0,80,smooth((t-0.3)/0.2)):t<0.7?lerp(80,0,smooth((t-0.5)/0.2)):0,
+    knee_l: t=>10,
+    ankle_r:t=>t<0.5?0:t<0.7?lerp(0,15,smooth((t-0.5)/0.2)):lerp(15,0,smooth((t-0.7)/0.3)),
+    ankle_l:t=>0,
+    shr: t=>t<0.5?lerp(0,25,smooth(t/0.5)):lerp(25,0,smooth((t-0.5)/0.5)),
+    shl: t=>t<0.5?lerp(0,-30,smooth(t/0.5)):lerp(-30,0,smooth((t-0.5)/0.5)),
+    elr: t=>60, ell: t=>60,
+    bodyY: t=>0,
+    phase: t=>t<0.3?'Preparation':t<0.5?'Pull-back':t<0.7?'Strike!':'Return',
+  },
+};
+
+// ---- CANVAS ----
+const canvas = document.getElementById('fig');
+const ctx = canvas.getContext('2d');
+let curMotion = 'walk', t = 0, speed = 0.8, lastTime = null;
+
+function resize() { canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight; }
+resize(); window.addEventListener('resize', resize);
+
+function drawBone(x1,y1,a,len,color,lw) {
+  var r=a*D2R, x2=x1+len*Math.sin(r), y2=y1+len*Math.cos(r);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+  ctx.strokeStyle=color; ctx.lineWidth=lw; ctx.lineCap='round'; ctx.stroke();
+  return {x:x2,y:y2};
+}
+function drawLeg(hx,hy,hipA,kneeA,ankleA,color,lw) {
+  var knee=drawBone(hx,hy,hipA,58,color,lw);
+  var kDir=hipA+kneeA;
+  var ankle=drawBone(knee.x,knee.y,kDir,52,color,lw*0.9);
+  var footDir=Math.max(kDir-90,-90-Math.max(0,ankleA));
+  drawBone(ankle.x,ankle.y,footDir,20,color,lw*0.8);
+}
+function drawArm(sx,sy,sA,eA,color,lw) {
+  var elbow=drawBone(sx,sy,sA,40,color,lw);
+  if(sA<0) drawBone(elbow.x,elbow.y,sA-Math.max(0,eA),34,color,lw*0.85);
+  else drawBone(elbow.x,elbow.y,sA,34,color,lw*0.85);
+}
+
+function draw(t) {
+  const m = motions[curMotion];
+  const W=canvas.width, H=canvas.height, cx=W/2;
+  const groundY=H-60;
+  const color=m.color, dim=color+'44';
+  ctx.clearRect(0,0,W,H);
+
+  // Ground line
+  ctx.beginPath(); ctx.moveTo(40,groundY); ctx.lineTo(W-40,groundY);
+  ctx.strokeStyle='#1a1a1e'; ctx.lineWidth=1; ctx.stroke();
+
+  const by=m.bodyY(t);
+  const hipY=groundY-110+by, sY=hipY-72, hY=sY-22;
+
+  const hr=m.hip_r(t), hl=m.hip_l(t);
+  const kr=m.knee_r(t), kl=m.knee_l(t);
+  const ar=m.ankle_r(t), al=m.ankle_l(t);
+  const sr=m.shr(t), sl=m.shl(t);
+  const er=m.elr(t), el=m.ell(t);
+
+  drawLeg(cx,hipY,hl,kl,al,dim,5);
+  drawArm(cx,sY,sl-12,el,dim,4);
+  ctx.beginPath(); ctx.moveTo(cx,hipY); ctx.lineTo(cx,sY);
+  ctx.strokeStyle=color; ctx.lineWidth=6; ctx.lineCap='round'; ctx.stroke();
+  drawLeg(cx,hipY,hr,kr,ar,color,5.5);
+  drawArm(cx,sY,sr+12,er,color,4.5);
+  ctx.beginPath(); ctx.arc(cx,hY,16,0,2*PI); ctx.strokeStyle=color; ctx.lineWidth=3.5; ctx.stroke();
+  [[cx,hipY],[cx,sY]].forEach(p=>{ ctx.beginPath(); ctx.arc(p[0],p[1],4,0,2*PI); ctx.fillStyle=color; ctx.fill(); });
+
+  // Update cards
+  const vals = {
+    'j-hip-r': hr, 'j-hip-l': hl, 'j-knee-r': kr, 'j-knee-l': kl,
+    'j-ankle-r': ar, 'j-ankle-l': al, 'j-shr': sr, 'j-shl': sl,
+    'j-elr': er, 'j-ell': el
+  };
+  Object.entries(vals).forEach(([id,v]) => {
+    var el = document.getElementById(id);
+    el.textContent = Math.round(v);
+    el.style.color = color;
+  });
+  document.getElementById('phase-tag').textContent = m.phase(t);
+  document.getElementById('t-tag').textContent = 't = ' + t.toFixed(2);
+}
+
+function loop(ts) {
+  if(!lastTime) lastTime=ts;
+  const dt = (ts-lastTime)/1000;
+  lastTime=ts;
+  const spd = curMotion==='jump'||curMotion==='kick' ? speed*0.4 : speed*0.55;
+  t=(t+dt*spd)%1;
+  draw(t);
+  requestAnimationFrame(loop);
+}
+
+// ---- DESC CARD ----
+function updateDesc() {
+  const m = motions[curMotion];
+  const d = m.desc;
+  var html = '<div class="desc-title" style="color:'+m.color+'">'+d.title+'</div>';
+  html += '<div class="desc-text">'+d.text+'</div>';
+  if(d.phases.length) {
+    html += '<ul class="phase-list">';
+    d.phases.forEach(p => { html += '<li><span>'+p[0]+'</span><span>'+p[1]+'</span></li>'; });
+    html += '</ul>';
+  }
+  document.getElementById('desc-card').innerHTML = html;
+}
+
+// ---- CONTROLS ----
+document.querySelectorAll('.motion-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.motion-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    curMotion = btn.dataset.m;
+    t = 0;
+    updateDesc();
+    // update header accent
+    document.querySelector('.accent').style.color = motions[curMotion].color;
+  });
+});
+
+document.getElementById('sl-speed').addEventListener('input', function() {
+  speed = parseFloat(this.value);
+  document.getElementById('lbl-speed').textContent = speed.toFixed(1)+'×';
+});
+
+updateDesc();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
