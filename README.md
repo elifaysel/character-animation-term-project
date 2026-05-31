@@ -1,5 +1,5 @@
 # Character Animation — Term Project
-**Student:** Elif Aysel Yıldırım  
+**Student:** Elif Aysel Yıldırım  - 220201046
 **Course:** Character Animation: Modeling, Simulation and Human Motion Control
 **Deadline:** May 31, 2026
 
